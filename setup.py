@@ -1,19 +1,32 @@
-from setuptools import setup
+from setuptools import setup, find_packages
+
 setup(
-    name = 'househunt',
-    packages = ['househunt'],
+    name='househunt',
+    packages=find_packages(exclude=['tests', 'tests.*']),
+    package_data={'househunt': []},
     install_requires=[
         'requests',
-        'xmltodict',
-        'tinydb',
-        'lxml',
     ],
-    version = '0.6.4',
-    description = 'Python module to search Redfin and combine with results from the Zillow API',
-    author = 'AlThor880',
-    author_email = 'althor880@gmail.com',
-    url = 'https://github.com/althor880/househunt',
-    download_url = 'https://github.com/althor880/househunt/tarball/0.6.4',
-    keywords = ['house', 'realty', 'zillow', 'redfin', 'api'],
-    classifiers = [],
+    extras_require={
+        # Only needed by the listing cache.
+        'cache': ['tinydb'],
+    },
+    python_requires='>=3.10',
+    version='0.7.0',
+    description=(
+        'Rank NJ ZIP codes by rail/bus commute to Midtown Manhattan, '
+        'then search listings in the best ones'
+    ),
+    author='AlThor880',
+    author_email='althor880@gmail.com',
+    url='https://github.com/nikunjangc/househunt',
+    keywords=['house', 'realty', 'commute', 'gtfs', 'raptor', 'transit', 'njmls'],
+    entry_points={
+        'console_scripts': [
+            'househunt=househunt.cli:main',
+        ],
+    },
+    classifiers=[
+        'Programming Language :: Python :: 3',
+    ],
 )

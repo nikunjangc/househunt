@@ -1,8 +1,14 @@
-ZWSID
 *.pyc
-*.BK
-*.swp
-*.json
-MANIFEST
-dist
-househunt.egg-info
+__pycache__/
+*.egg-info/
+build/
+dist/
+
+# GTFS feeds and generated outputs — large, and NJ Transit's are licensed
+# per-developer, so they are not redistributed here.
+data/*.zip
+data/zip_scores.csv
+data/houses.csv
+listing_db.json
+ZWSID
+.env
