@@ -240,6 +240,48 @@ def arrive_by(
     return labels
 
 
+def peak_departure_count(
+    net: Network,
+    stop_index: int,
+    route_ids: Iterable[str] | None = None,
+    peak_start: int = 6 * 3600,
+    peak_end: int = int(9.5 * 3600),
+) -> int:
+    """Count scheduled departures from a stop during the peak window.
+
+    Read straight off the timetable, deliberately. Counting distinct departure
+    times returned by :func:`profile` instead would cap the answer at one per
+    deadline sampled -- a 5-minute sweep can never report more than 12 per
+    hour, so every genuinely frequent service (PATH, light rail, a trunk bus
+    corridor) would be flattened to the sampling rate and look identical to a
+    train every 5 minutes.
+
+    ``route_ids`` restricts the count to routes that actually proved useful for
+    reaching the target, so a stop is not credited for service running the
+    wrong way. If none of them serve this stop -- which happens when the label
+    arrived here over a footpath -- every route at the stop is counted.
+    """
+    wanted = set(route_ids) if route_ids else None
+    total = 0
+    matched_any = False
+
+    for p_idx, pos in net.stop_patterns[stop_index]:
+        pattern = net.patterns[p_idx]
+        # The last stop of a pattern is where you get off, not on.
+        if pos >= len(pattern.stops) - 1:
+            continue
+        if wanted is not None and pattern.route_id not in wanted:
+            continue
+        matched_any = True
+        for departures in pattern.trip_departures:
+            if peak_start <= departures[pos] <= peak_end:
+                total += 1
+
+    if wanted is not None and not matched_any:
+        return peak_departure_count(net, stop_index, None, peak_start, peak_end)
+    return total
+
+
 @dataclass
 class StopProfile:
     """Aggregated arrive-by results for one stop across a peak window."""

@@ -16,7 +16,12 @@ import tempfile
 import unittest
 
 from househunt.commute.gtfs import Feed, build_network, parse_gtfs_time
-from househunt.commute.raptor import arrive_by, build_footpaths, profile
+from househunt.commute.raptor import (
+    arrive_by,
+    build_footpaths,
+    peak_departure_count,
+    profile,
+)
 
 H = 3600
 M = 60
@@ -150,6 +155,53 @@ class RaptorTestCase(unittest.TestCase):
         self.assertEqual(profiles[self.sid("RIDGEWOOD")].transfers, 0)
         self.assertFalse(profiles[self.sid("MAYWOOD")].one_seat_ride)
         self.assertEqual(profiles[self.sid("MAYWOOD")].transfers, 1)
+
+    # -- frequency -------------------------------------------------------
+
+    def test_peak_departure_count_reads_the_timetable(self):
+        # R1 leaves RIDGEWOOD at 06:00, 06:30, 07:00, 07:30, 08:00 -> 5 in a
+        # 06:00-09:30 window.
+        self.assertEqual(
+            peak_departure_count(self.net, self.sid("RIDGEWOOD"),
+                                 peak_start=6 * H, peak_end=int(9.5 * H)),
+            5,
+        )
+        # B1 leaves FORT_LEE every 20 min from 06:00, 9 trips.
+        self.assertEqual(
+            peak_departure_count(self.net, self.sid("FORT_LEE"),
+                                 peak_start=6 * H, peak_end=int(9.5 * H)),
+            9,
+        )
+
+    def test_peak_departure_count_excludes_pattern_terminus(self):
+        # NY_PENN is the last stop of R1; you cannot board there to go onward,
+        # so its arrivals must not be counted as departures.
+        self.assertEqual(
+            peak_departure_count(self.net, self.sid("NY_PENN"), ["fx:R1"]), 0
+        )
+
+    def test_peak_departure_count_restricts_to_useful_routes(self):
+        # GLEN_ROCK is served by R1 (rail, 5 trips) and is the terminus of the
+        # F1 feeder, so restricting to R1 changes nothing, but restricting to
+        # F1 alone yields no boardable departures.
+        self.assertEqual(
+            peak_departure_count(self.net, self.sid("GLEN_ROCK"), ["fx:R1"],
+                                 6 * H, int(9.5 * H)),
+            5,
+        )
+
+    def test_peak_departure_count_is_not_capped_by_sampling(self):
+        # P1 runs every 10 min from 06:00 (20 trips), so 06:00-09:30 holds 20
+        # boardable departures. A 5-minute profile sweep over the same window
+        # could only ever observe 31, and over a 1-hour window only 13 -- the
+        # timetable count must be independent of how the sweep was sampled.
+        sparse = profile(self.net, self.targets(), range(8 * H, 9 * H + 1, 30 * M))
+        self.assertLessEqual(len(sparse[self.sid("HOB_PATH")].departures), 3)
+        self.assertEqual(
+            peak_departure_count(self.net, self.sid("HOB_PATH"),
+                                 peak_start=6 * H, peak_end=int(9.5 * H)),
+            20,
+        )
 
     def test_travel_budget_prunes_far_stops(self):
         deadlines = range(8 * H, 9 * H + 1, 5 * M)

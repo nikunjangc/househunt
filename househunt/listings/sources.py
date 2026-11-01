@@ -31,12 +31,30 @@ import re
 import urllib.parse
 import urllib.robotparser
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
-
-import requests
+from typing import TYPE_CHECKING, Any, Callable, Iterable
 
 from .models import House, Listing
 from .search import SearchCriteria
+
+if TYPE_CHECKING:  # pragma: no cover
+    import requests
+
+
+def _session(session: "requests.Session | None" = None) -> "requests.Session":
+    """Build a requests session, importing requests only when needed.
+
+    The commute pipeline makes no HTTP calls at all, so importing requests at
+    module scope would make the whole ZIP-ranking stage -- the half that works
+    with no MLS access whatsoever -- fail on a bare Python install.
+    """
+    try:
+        import requests
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "the listing backends need `requests` (pip install requests); "
+            "the commute stage does not"
+        ) from exc
+    return session if session is not None else requests.Session()
 
 DEFAULT_TIMEOUT = 30
 USER_AGENT = "househunt/0.7 (personal home search; +https://github.com/nikunjangc/househunt)"
@@ -93,14 +111,14 @@ class ResoWebApiSource:
         access_token: str,
         resource: str = "Property",
         page_size: int = 200,
-        session: requests.Session | None = None,
+        session: "requests.Session | None" = None,
         timeout: int = DEFAULT_TIMEOUT,
     ):
         self.base_url = base_url.rstrip("/")
         self.resource = resource
         self.page_size = page_size
         self.timeout = timeout
-        self.session = session or requests.Session()
+        self.session = _session(session)
         self.session.headers.update(
             {
                 "Authorization": f"Bearer {access_token}",
@@ -225,7 +243,7 @@ class NjmlsPortalSource:
         endpoint: NjmlsEndpoint | None = None,
         acknowledge_terms: bool = False,
         respect_robots: bool = True,
-        session: requests.Session | None = None,
+        session: "requests.Session | None" = None,
         timeout: int = DEFAULT_TIMEOUT,
         parse_html: Callable[[str], list[dict[str, Any]]] | None = None,
     ):
@@ -241,7 +259,7 @@ class NjmlsPortalSource:
         self.timeout = timeout
         self.respect_robots = respect_robots
         self._parse_html = parse_html or parse_njmls_html
-        self.session = session or requests.Session()
+        self.session = _session(session)
         self.session.headers.update(
             {
                 "User-Agent": USER_AGENT,

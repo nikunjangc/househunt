@@ -33,8 +33,16 @@ The search runs **backwards** from Midtown: each label is the latest departure
 from a stop that still gets you there by the deadline. One backward pass scores
 every origin in the state at once, which is what makes ~600 ZIP codes tractable.
 Sweeping the deadline across the morning peak (`--window-start`/`--window-end`)
-turns a single answer into a profile, which is where the frequency numbers come
-from.
+turns a single answer into a profile.
+
+`--step` sets how finely that sweep samples, which controls travel-time
+resolution: a journey's measured time can overstate the true one by up to one
+step, because the search reports the latest departure meeting a deadline rather
+than the arrival. Frequency is *not* taken from the sweep — it is counted
+directly off the timetable by `peak_departure_count`. Deriving it from the sweep
+caps it at one departure per sample, so at `--step 5` nothing could ever report
+more than 12/hour and PATH, light rail and trunk bus corridors all flattened to
+look identical.
 
 Scoring is in `househunt/commute/score.py` and every component is exposed
 individually, so you can see *why* a ZIP ranked where it did and re-weight it:
@@ -53,8 +61,26 @@ individually, so you can see *why* a ZIP ranked where it did and re-weight it:
 pip install -e .
 ```
 
-Only `requests` is needed for the commute stage; `tinydb` is optional and used
-by the listing cache.
+The commute stage needs **no third-party packages at all** — standard library
+only. `requests` is needed solely by the listing backends, and `tinydb` only by
+the listing cache; both are imported lazily, so ZIP ranking works on a bare
+Python 3.10+.
+
+### Smoke-test it without any NJ Transit account
+
+The MTA subway feed is public, so you can exercise the whole pipeline on real
+data before registering for anything:
+
+```bash
+curl -o mta.zip https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip
+curl -o ny_zips.geojson https://raw.githubusercontent.com/OpenDataDE/State-zip-code-GeoJSON/master/ny_new_york_zip_codes_geo.min.json
+python -m househunt.cli commute --feed mta.zip --zips ny_zips.geojson --budget 45
+```
+
+That ranks NYC ZIP codes by subway commute to Penn/Grand Central — about six
+seconds for 992 stops and 20,310 trips. Midtown ZIPs should come out on top at
+6–7 minutes, and it confirms the GTFS parser, router and scorer all work on a
+real full-size feed.
 
 ## Stage 1: commute
 

@@ -26,6 +26,18 @@ from househunt.listings.sources import (
 )
 
 
+try:
+    import requests  # noqa: F401
+
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
+needs_requests = unittest.skipUnless(
+    HAS_REQUESTS, "requests not installed; the backends need it, the runner does not"
+)
+
+
 def make_listing(addr: str, zip_code: str = "07450", price: int = 600_000, **kw) -> Listing:
     return Listing(
         house=House(street_address=addr, city="Ridgewood", state="NJ", zip_code=zip_code,
@@ -159,6 +171,7 @@ class DedupeTest(unittest.TestCase):
         self.assertEqual(len(dedupe([make_listing("1 Main St"), make_listing("2 Main St")])), 2)
 
 
+@needs_requests
 class ResoSourceTest(unittest.TestCase):
     def source(self) -> ResoWebApiSource:
         return ResoWebApiSource("https://api.example.com/reso/odata", "token123")
@@ -208,6 +221,7 @@ class NjmlsSourceTest(unittest.TestCase):
         with self.assertRaises(TermsNotAcknowledged):
             NjmlsPortalSource()
 
+    @needs_requests
     def test_builds_search_params(self):
         source = NjmlsPortalSource(acknowledge_terms=True, respect_robots=False)
         params = source.build_params("07450", SearchCriteria(min_price=500_000, min_beds=2))
@@ -239,6 +253,7 @@ class NjmlsSourceTest(unittest.TestCase):
             parse_njmls_html('<script type="application/ld+json">{broken</script>'), []
         )
 
+    @needs_requests
     def test_custom_parser_is_used(self):
         called = []
 

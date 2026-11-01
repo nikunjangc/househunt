@@ -21,7 +21,7 @@ from typing import Any, Iterable, Mapping
 
 from .geo import ZipIndex
 from .gtfs import Network
-from .raptor import StopProfile
+from .raptor import StopProfile, peak_departure_count
 
 
 @dataclass
@@ -144,10 +144,14 @@ def score_zips(
         medians = sorted(p.median_minutes for p in within_budget)
         median_minutes = medians[len(medians) // 2]
 
-        peak_departures = [d for d in best.departures if peak_lo <= d <= peak_hi]
-        departures_per_hour = len(peak_departures) / peak_hours
-
         route_ids = sorted({r for p in within_budget for r in p.routes})
+
+        # Counted off the timetable rather than from the profile sweep, which
+        # would be capped at one departure per deadline sampled.
+        departures_per_hour = (
+            peak_departure_count(net, best.stop_index, route_ids, peak_lo, peak_hi)
+            / peak_hours
+        )
         routes = [net.routes[r] for r in route_ids if r in net.routes]
         has_express = any(r.is_express for r in routes)
         modes = sorted({r.mode for r in routes})
